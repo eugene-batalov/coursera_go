@@ -4,15 +4,59 @@ import (
 	"net/http"
 	"testing"
 	"net/http/httptest"
-	"fmt"
 	"time"
 	"io"
+	"encoding/xml"
+	"os"
+	"io/ioutil"
+	"encoding/json"
+	"fmt"
 )
 
 // код писать тут
 
 func SearchServer(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("server here")
+	w.WriteHeader(http.StatusOK)
+
+	file, _ := os.Open("dataset.xml")
+
+	fileContents, _ := ioutil.ReadAll(file)
+	data := Root{}
+	xml.Unmarshal(fileContents, &data)
+	limit, _ := r.URL.Query()["limit"]
+	offset, _ := r.URL.Query()["offset"]
+	query, _ := r.URL.Query()["query"]
+	order_field, _ := r.URL.Query()["order_field"]
+	order_by, _ := r.URL.Query()["order_by"]
+	fmt.Println(limit)
+	bytes, _ := json.Marshal(data.Row[0:2])
+	s := string(bytes)
+	io.WriteString(w, s)
+}
+
+type Root struct {
+	XMLName xml.Name `xml:"root"`
+	Text    string   `xml:",chardata"`
+	Row     []struct {
+		Text          string `xml:",chardata"`
+		ID            int    `xml:"id"`
+		Guid          string `xml:"guid"`
+		IsActive      string `xml:"isActive"`
+		Balance       string `xml:"balance"`
+		Picture       string `xml:"picture"`
+		Age           int    `xml:"age"`
+		EyeColor      string `xml:"eyeColor"`
+		FirstName     string `xml:"first_name"`
+		LastName      string `xml:"last_name"`
+		Gender        string `xml:"gender"`
+		Company       string `xml:"company"`
+		Email         string `xml:"email"`
+		Phone         string `xml:"phone"`
+		Address       string `xml:"address"`
+		About         string `xml:"about"`
+		Registered    string `xml:"registered"`
+		FavoriteFruit string `xml:"favoriteFruit"`
+	} `xml:"row"`
 }
 
 var (
@@ -26,6 +70,9 @@ var (
 		},
 		SearchRequest{
 			Limit: 17,
+		},
+		SearchRequest{
+			Limit: 2,
 		},
 	}
 	searchClient = &SearchClient{
@@ -67,7 +114,7 @@ func TestFindUsersUnknownError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
 	searchClient.URL = "BADURL"
 	response, err := searchClient.FindUsers(cases[2])
-	if response != nil || err.Error() != "unknown error Get BADURL?limit=18&offset=0&order_by=0&order_field=&query" +
+	if response != nil || err.Error() != "unknown error Get BADURL?limit=18&offset=0&order_by=0&order_field=&query"+
 		"=: unsupported protocol scheme \"\"" {
 		t.Error("should produce unknown error")
 	}
@@ -146,6 +193,58 @@ func TestFindUsersStatusReturnBadJson(t *testing.T) {
 	}))
 	searchClient.URL = ts.URL
 	response, err := searchClient.FindUsers(cases[2])
+	if response != nil || err.Error() != "cant unpack result json: json: cannot unmarshal object into Go value of type []main.User" {
+		t.Error("should produce cant unpack result json:")
+	}
+	ts.Close()
+}
+
+func TestFindUsersStatusReturnLimitEquals(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+
+		file, _ := os.Open("dataset.xml")
+
+		fileContents, _ := ioutil.ReadAll(file)
+		data := Root{}
+		xml.Unmarshal(fileContents, &data)
+		bytes, _ := json.Marshal(data.Row[0:3])
+		s := string(bytes)
+		io.WriteString(w, s)
+	}))
+	searchClient.URL = ts.URL
+	response, err := searchClient.FindUsers(cases[3])
+	if response != nil || err.Error() != "cant unpack result json: json: cannot unmarshal object into Go value of type []main.User" {
+		t.Error("should produce cant unpack result json:")
+	}
+	ts.Close()
+}
+
+func TestFindUsersStatusReturnLimitLess(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+
+		file, _ := os.Open("dataset.xml")
+
+		fileContents, _ := ioutil.ReadAll(file)
+		data := Root{}
+		xml.Unmarshal(fileContents, &data)
+		bytes, _ := json.Marshal(data.Row[0:2])
+		s := string(bytes)
+		io.WriteString(w, s)
+	}))
+	searchClient.URL = ts.URL
+	response, err := searchClient.FindUsers(cases[3])
+	if response != nil || err.Error() != "cant unpack result json: json: cannot unmarshal object into Go value of type []main.User" {
+		t.Error("should produce cant unpack result json:")
+	}
+	ts.Close()
+}
+
+func TestFindUsersStatusUseSearchServer(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
+	searchClient.URL = ts.URL
+	response, err := searchClient.FindUsers(cases[3])
 	if response != nil || err.Error() != "cant unpack result json: json: cannot unmarshal object into Go value of type []main.User" {
 		t.Error("should produce cant unpack result json:")
 	}
