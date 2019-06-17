@@ -1,16 +1,17 @@
 package main
 
 import (
-	"net/http"
-	"testing"
-	"net/http/httptest"
-	"time"
-	"io"
-	"encoding/xml"
-	"os"
-	"io/ioutil"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"testing"
+	"time"
 )
 
 // код писать тут
@@ -23,12 +24,12 @@ func SearchServer(w http.ResponseWriter, r *http.Request) {
 	fileContents, _ := ioutil.ReadAll(file)
 	data := Root{}
 	xml.Unmarshal(fileContents, &data)
-	limit, _ := r.URL.Query()["limit"]
+	limit, _ := strconv.Atoi(r.URL.Query()["limit"][0])
 	offset, _ := r.URL.Query()["offset"]
 	query, _ := r.URL.Query()["query"]
 	order_field, _ := r.URL.Query()["order_field"]
 	order_by, _ := r.URL.Query()["order_by"]
-	fmt.Println(limit)
+	fmt.Println(limit, offset, query, order_field, order_by)
 	bytes, _ := json.Marshal(data.Row[0:2])
 	s := string(bytes)
 	io.WriteString(w, s)
@@ -213,9 +214,9 @@ func TestFindUsersStatusReturnLimitEquals(t *testing.T) {
 		io.WriteString(w, s)
 	}))
 	searchClient.URL = ts.URL
-	response, err := searchClient.FindUsers(cases[3])
-	if response != nil || err.Error() != "cant unpack result json: json: cannot unmarshal object into Go value of type []main.User" {
-		t.Error("should produce cant unpack result json:")
+	response, _ := searchClient.FindUsers(cases[3])
+	if !response.NextPage {
+		t.Error("should return response.NextPage == true")
 	}
 	ts.Close()
 }
@@ -234,19 +235,9 @@ func TestFindUsersStatusReturnLimitLess(t *testing.T) {
 		io.WriteString(w, s)
 	}))
 	searchClient.URL = ts.URL
-	response, err := searchClient.FindUsers(cases[3])
-	if response != nil || err.Error() != "cant unpack result json: json: cannot unmarshal object into Go value of type []main.User" {
-		t.Error("should produce cant unpack result json:")
-	}
-	ts.Close()
-}
-
-func TestFindUsersStatusUseSearchServer(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
-	searchClient.URL = ts.URL
-	response, err := searchClient.FindUsers(cases[3])
-	if response != nil || err.Error() != "cant unpack result json: json: cannot unmarshal object into Go value of type []main.User" {
-		t.Error("should produce cant unpack result json:")
+	response, _ := searchClient.FindUsers(cases[3])
+	if response.NextPage {
+		t.Error("should return response.NextPage == false")
 	}
 	ts.Close()
 }
