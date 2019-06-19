@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
 type Item struct {
@@ -140,21 +141,31 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	// основные настройки к базе
-	dsn := "root@tcp(localhost:3306)/coursera?"
+	//dsn := "postgres:my-secret-pw@tcp(192.168.99.100:5432)/coursera?"
+	//dsn := "root:my-secret-pw@tcp(192.168.99.100:3306)/coursera?"
 	// указываем кодировку
-	dsn += "&charset=utf8"
+	//dsn += "&charset=utf8"
 	// отказываемся от prapared statements
 	// параметры подставляются сразу
-	dsn += "&interpolateParams=true"
+	//dsn += "&interpolateParams=true"
 
-	db, err := gorm.Open("mysql", dsn)
+	username := os.Getenv("db_user")//"postgres"//
+	password := os.Getenv("db_pass")//"my-secret-pw"//
+	dbName := os.Getenv("db_name")//"coursera"//
+	dbHost := os.Getenv("db_host")//"192.168.99.100"//
+
+
+	dbUri := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=disable password=%s", dbHost, username, dbName, password) //Build connection string
+
+	db, err := gorm.Open("postgres", dbUri)
 	db.DB()
 	db.DB().Ping()
 	__err_panic(err)
+	db = db.AutoMigrate(&Item{})
 
 	handlers := &Handler{
 		DB:   db,
-		Tmpl: template.Must(template.ParseGlob("../gorm_templates/*")),
+		Tmpl: template.Must(template.ParseGlob("gorm_templates/*")),
 	}
 
 	// в целям упрощения примера пропущена авторизация и csrf
